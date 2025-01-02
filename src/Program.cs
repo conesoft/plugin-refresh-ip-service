@@ -1,6 +1,7 @@
 using Conesoft.Files;
 using Conesoft.Hosting;
-using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Serilog;
 using System;
 using System.Linq;
@@ -9,23 +10,29 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
-var builder = Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder(args);
-builder.Services
-    .AddPeriodicGarbageCollection(TimeSpan.FromMinutes(5));
+var builder = Host.CreateApplicationBuilder(args);
+
+builder
+    .AddHostConfigurationFiles()
+    .AddHostEnvironmentInfo()
+    .AddLoggingService()
+    ;
 
 var host = builder.Build();
 
-await host.StartAsync();
+using var lifetime = await host.StartConsoleAsync();
 
-var configuration = new ConfigurationBuilder().AddJsonFile(Host.GlobalConfiguration.Path).Build();
+var environment = host.Services.GetRequiredService<HostEnvironment>();
+var configuration = builder.Configuration;
 
-var file = Host.GlobalStorage / "FromSources" / "Ipify" / Filename.From("Ip", "txt");
+var file = environment.Global.Storage / "FromSources" / "Ipify" / Filename.From("Ip", "txt");
 file.Parent.Create();
 
 var ipify = new Conesoft.Ipify.Client(new HttpClient());
 var dnsimple = new Conesoft.DNSimple.Client(new HttpClient());
 
 var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+
 do
 {
     try
@@ -46,9 +53,9 @@ do
         Log.Error("error: {exception}", e.Message);
     }
 }
-while (await timer.WaitForNextTickAsync());
+while (await timer.WaitForNextTickAsync(lifetime.CancellationToken).ReturnFalseWhenCancelled());
 
-    async Task UpdateDnsRecord(IPAddress address)
+async Task UpdateDnsRecord(IPAddress address)
 {
     dnsimple.UseToken(configuration["hosting:dnsimple-token"]);
 
@@ -59,7 +66,7 @@ while (await timer.WaitForNextTickAsync());
     foreach (var zone in zones)
     {
 
-        var hosted = Host.Root / "Deployments" / "Websites" / Filename.From(zone.Name, "zip");
+        var hosted = environment.Root / "Deployments" / "Websites" / Filename.From(zone.Name, "zip");
         if (hosted.Exists)
         {
             Log.Information("Updating Zone {zone}", zone.Name);
