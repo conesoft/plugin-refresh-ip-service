@@ -7,7 +7,7 @@
 
   <ItemGroup>
     <PackageReference Include="Conesoft.DNSimple" Version="2.0.1" />
-    <PackageReference Include="Conesoft.Hosting" Version="3.4.14" />
+    <PackageReference Include="Conesoft.Hosting" Version="3.5.10" />
     <PackageReference Include="Conesoft.Ipify" Version="2.0.0" />
   </ItemGroup>
 </Project>
